@@ -1,0 +1,11 @@
+services:
+  api:
+    build: .
+    container_name: lichs_poco_api_sqlite
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data
+    working_dir: /app/data
+    command: ["/app/API_Poco_SQLite"]
+    restart: unless-stopped

@@ -1,0 +1,31 @@
+FROM ubuntu:22.04 AS build
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    cmake \
+    libpoco-dev \
+    libsqlite3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+COPY . .
+RUN cmake -B build -DCMAKE_BUILD_TYPE=Release && \
+    cmake --build build -j$(nproc)
+
+
+FROM ubuntu:22.04
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpoco-dev \
+    libsqlite3-0 \
+    sqlite3 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY --from=build /src/build/API_Poco_SQLite /app/API_Poco_SQLite
+
+# это директория для бд
+RUN mkdir -p /app/data
+
+EXPOSE 8080
+CMD ["/app/API_Poco_SQLite"]

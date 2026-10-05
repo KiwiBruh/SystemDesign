@@ -1,0 +1,299 @@
+openapi: 3.0.3
+
+info:
+  title: Lichs Library API
+  description: |
+    API для библиотеки. Можно регистрироваться, логиниться, добавлять книги,
+    искать их и выдавать/возвращать читателям.
+
+    Сделано на C++ (POCO) и SQLite.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080
+    description: Локальный сервер
+
+tags:
+  - name: Health
+    description: Проверка что сервер жив
+  - name: Auth
+    description: Регистрация и вход
+  - name: Books
+    description: Книги
+  - name: Loans
+    description: Выдача и возврат
+
+paths:
+  /ping:
+    get:
+      tags: [Health]
+      summary: Проверка что сервер работает
+      responses:
+        '200':
+          description: Всё ок
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /register:
+    post:
+      tags: [Auth]
+      summary: Зарегистрировать нового пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Пользователь создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /login:
+    post:
+      tags: [Auth]
+      summary: Войти и получить JWT токен
+      description: |
+        Если логин и пароль верные — вернёт токен.
+        Его потом нужно передавать в заголовке `Authorization: Bearer <токен>`
+        для защищённых эндпоинтов.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Токен получен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+
+  /books:
+    post:
+      tags: [Books]
+      summary: Добавить книгу
+      description: Требует токен. Кто добавил — берётся из токена.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookCreateRequest'
+      responses:
+        '201':
+          description: Книга добавлена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Book'
+
+    get:
+      tags: [Books]
+      summary: Список книг или поиск
+      description: |
+        Без параметров — вернёт все книги.
+        С `?title=...` — поиск по названию.
+        С `?author=...` — поиск по автору.
+        Можно оба сразу.
+      parameters:
+        - name: title
+          in: query
+          required: false
+          schema:
+            type: string
+          example: War
+        - name: author
+          in: query
+          required: false
+          schema:
+            type: string
+          example: Tolstoy
+      responses:
+        '200':
+          description: Список книг
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookList'
+
+  /loans:
+    post:
+      tags: [Loans]
+      summary: Выдать книгу или вернуть её
+      description: |
+        Требует токен.
+
+        **Выдача.** Без параметров. В теле `{"book_id": 1}`.
+        Книга должна быть доступна — иначе ошибка.
+
+        **Возврат.** С параметром `?return=<id выдачи>`.
+        Вернуть можно только свою активную выдачу.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: return
+          in: query
+          required: false
+          description: ID выдачи, которую надо вернуть
+          schema:
+            type: integer
+          example: 3
+      requestBody:
+        required: false
+        description: Нужно только когда выдаём книгу (без ?return=)
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoanCreateRequest'
+      responses:
+        '200':
+          description: Книга возвращена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Loan'
+        '201':
+          description: Книга выдана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Loan'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [login, password, name]
+      properties:
+        login:
+          type: string
+          example: alice
+        password:
+          type: string
+          example: secret123
+        name:
+          type: string
+          example: Alice Ivanova
+
+    LoginRequest:
+      type: object
+      required: [login, password]
+      properties:
+        login:
+          type: string
+          example: alice
+        password:
+          type: string
+          example: secret123
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIs...
+        login:
+          type: string
+          example: alice
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        login:
+          type: string
+          example: alice
+        name:
+          type: string
+          example: Alice Ivanova
+
+    BookCreateRequest:
+      type: object
+      required: [title, author]
+      properties:
+        title:
+          type: string
+          example: War and Peace
+        author:
+          type: string
+          example: Leo Tolstoy
+
+    Book:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: War and Peace
+        author:
+          type: string
+          example: Leo Tolstoy
+        is_available:
+          type: boolean
+          example: true
+        added_by:
+          type: string
+          example: alice
+
+    BookList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 2
+        books:
+          type: array
+          items:
+            $ref: '#/components/schemas/Book'
+
+    LoanCreateRequest:
+      type: object
+      required: [book_id]
+      properties:
+        book_id:
+          type: integer
+          example: 1
+
+    Loan:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        book_id:
+          type: integer
+          example: 1
+        user_id:
+          type: integer
+          example: 1
+        login:
+          type: string
+          example: alice
+        status:
+          type: string
+          enum: [active, returned]
+          example: active
