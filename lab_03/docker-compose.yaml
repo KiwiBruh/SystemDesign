@@ -1,0 +1,32 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: lichs_postgres
+    environment:
+      POSTGRES_USER: lichs
+      POSTGRES_PASSWORD: lichs_password
+      POSTGRES_DB: lichs_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+      - ./data.sql:/docker-entrypoint-initdb.d/02_data.sql
+
+  api:
+    build: .
+    container_name: lichs_poco_api_PG
+    depends_on:
+      - postgres
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: lichs
+      DB_PASSWORD: lichs_password
+      DB_NAME: lichs_db
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
